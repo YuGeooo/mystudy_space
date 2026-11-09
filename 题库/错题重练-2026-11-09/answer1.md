@@ -1,6 +1,6 @@
 ---
 time: 2026-11-09 07:40
-file: 错题重练/paper.md（本卷 5 题，手写草稿 2 页仅本地）
+file: 错题重练-2026-11-09/paper.md（本卷 5 题，手写草稿 2 页仅本地）
 duration: 12min
 timingMode: session
 ---
