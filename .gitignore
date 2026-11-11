@@ -1,0 +1,15 @@
+.DS_Store
+
+# 草稿扫描件、原卷 PDF、照片：只留本地
+草稿/
+*.pdf
+*.PDF
+*.HEIC
+*.heic
+*.jpg
+*.jpeg
+*.png
+
+# 临时产物
+*.tmp
+~$*
