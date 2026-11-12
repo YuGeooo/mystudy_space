@@ -5,15 +5,23 @@
 **记录存在云端数据库里，不在这里。** 本工作区放的是回看用的本地副本、新写的总结、草稿扫描件；
 所有结构化数据（题干、作答、判定、错因、重做状态）都在 `geyuqi.me` 的库里：**查直接写 SQL，写走 `mem` 命令**。
 
+## 0. 现在是什么状态
+
+**作答重建已在 2026-11-12 完成**：线上 8 卷 / 343 题 / 41 场 / 328 条作答，与站点页面一致。
+
+重建用的脚本、请求体、自检报告与回滚备份已经整体迁出到
+`../mem_study-archive/2026-11-12-作答重建/`，本工作区只放学习材料。
+日常就是第 4、5 节那套：做题 → 转录批改 → `mem s new` 入库 → 写总结。
+
 ## 1. 目录
 
 ```text
 mem_study/
-├── 题库/                 本地副本：题干、作答与批改、答案速查、各卷总结（58 份 Markdown）
-├── 总结/                 新写的总结与生词本
+├── 题库/                 本地副本：题干、作答与批改、答案速查、各卷总结（60 份 Markdown）
+├── 总结/                 新写的总结与常用口径
 │   ├── 管综-批改总结.md
-│   ├── 英语二-试卷总结.md
-│   └── 生词本.md
+│   ├── 错因标签口径.md
+│   └── README.md
 ├── 草稿/                 扫描件、照片、草稿 PDF，不进版本管理
 └── AGENTS.md
 ```
@@ -26,11 +34,10 @@ mem_study/
 | 项 | 值 |
 |---|---|
 | 真源 | 线上 SQLite，跑在 `geyuqi.me`（`mem-api.service`） |
-| 规模 | 7 卷 / 328 题 / 40 场 / 317 条作答 |
+| 规模 | 8 卷 / 343 题 / 41 场 / 328 条作答 |
 | 站点 | <https://geyuqi.me/study/>，与接口同一进程实时渲染，写完立刻可见 |
-| 入口 | 查询 `mem sql`（只读 SQL）· 写入 `mem` 命令（`/api/*`） |
+| 入口 | 查询 `mem sql`（只读 SQL）· 页面口径 `/api/study` · 写入 `mem` 命令（`/api/*`） |
 | 鉴权 | token 在 `~/.mem-api-token`，或 `MEM_WRITE_TOKEN` |
-| 备份 | 每次写之前自动快照；每天 03:30 备份，保留 14 天 |
 
 源码在 `../mem_web/`：SQL 用法与表结构见 `../mem_web/doc/sql.md`，写接口的字段白名单见 `../mem_web/doc/cli.md` §5。
 
@@ -44,7 +51,6 @@ mem_study/
 ```bash
 mem sql "select ..."             # 默认 SSH 到服务器执行，读真源
 mem sql --http "select ..."      # 走 HTTPS /api/sql，不用 SSH（需 token）
-mem sql --local "select ..."     # 读本机镜像 data/mem.db（先 mem pull）
 mem sql --json "..."             # {ok, columns, rows, count, truncated, ms}，脚本用这个
 mem sql --csv "..." > out.csv    # 直接给 Excel / 数透
 mem schema attempts              # 字段名先查，不要猜
@@ -53,16 +59,31 @@ mem schema attempts              # 字段名先查，不要猜
 闸门：单条语句、首关键字只能是 `select` / `with` / `explain` / `values` / `pragma`、结果上限 1000 行、
 20 s 超时。`insert` / `update` / `delete` 会被拒（`bad_request`）——**不是权限没配好，是设计如此**。
 
-**三个目标**：默认打线上 `https://geyuqi.me`（唯一可写的生产库）；`--local` 读本机镜像
-（`mem sql --local` 直接读 `data/mem.db`，不需要起服务；其它命令打 8137 只读进程，写会 404）；
-`--test` 打 8138 测试库（`data/test.db`，可写，随便试）。
+**唯一目标**：`mem sql` 默认打线上 `https://geyuqi.me`（唯一可写的生产库），查的就是真源，不切换目标。
 
 **四条铁律**：
 
 1. 脚本化调用一律加 `--json`，解析 `rows`，别正则人话表格。
 2. 写之前先用 SQL 查 id（`attempts.id`、`sessions.id`），**不要自己拼 id**。
-3. 只读可以 `--local`；**写入绝不加 `--local`**，只打默认线上。
+3. 只读与写入都只打默认线上目标。
 4. 4xx 不重试，按 `code` 处理；写完用 `mem s get <id> --json` 回读确认。
+
+**页面口径的统计不用自己算**：站点的聚合（学习天数、连续天数、各卷掌握度、知识点正确率、
+周聚合）已经在渲染页面时算好，`/api/study` 原样返回这份结果——它和页面读的是同一时刻
+同一份库，所以数字与站点显示严格一致：
+
+```bash
+curl -s https://geyuqi.me/api/study?section=stats      # 学习天数 / 连续 / 总正确率
+curl -s https://geyuqi.me/api/study?section=volumes    # 各卷掌握度（进度、正确率、用时）
+curl -s https://geyuqi.me/api/study?section=knowledge  # 知识点树与考点正确率
+```
+
+`section` 可选 `meta` / `stats` / `today` / `days` / `weeks` / `countdown` / `volumes` /
+`knowledge` / `warnings`；不带则返回全集（约 96 KB）。写进总结的统计数字**优先取这里**——
+免去了自己对齐 `correct` 三态、`distinct` 去重、`duration_min` 为空不估算这些口径。
+SQL 留给固定切面覆盖不了的临时分析（§3.3）。
+
+> `/api/study` 已在线上可用（2026-11-12 验证 `section=stats` 返回 200），直接 curl 即可。
 
 ### 3.2 四张表
 
@@ -121,6 +142,7 @@ where a.question_id = 'math-applied-distance-14' order by s.date
 ```
 
 **进度用题目数，正确率用题次**，两个数不一样，写进总结时要注明口径（见第 6 节）。
+拿不准口径就别自己算，直接取 `/api/study?section=volumes`（§3.1），数字与站点一致。
 更多现成查询（正确率、趋势、连续学习日、时长分布）见 `../mem_web/doc/sql.md` §4。
 
 ### 3.4 写：只能走 `mem`
@@ -202,6 +224,8 @@ mem q set 2024-exam-q001 --file patch.json      # 长文本走 --file
 - 不要在 `题库/` 里随手改判定或答案：那里是回看副本，改了不会同步到库，只会造出第二份不一致的数据。要更正就 `mem a set` / `mem q set`。
 - 不要凭记忆报题目、答案或分数；查不到就写"未记录"。
 - 不要自己恢复线上数据，不要动线上服务。
+- **不要拿旧备份覆盖线上**（`../mem_web/backups/*.db`、`mem backups` 写前快照）：重建已完成，这些是恢复用的保险，不是数据源。真要回滚先问一句。
+- 重建工程（脚本、请求体、自检与备份）已归档在 `../mem_study-archive/2026-11-12-作答重建/`，**不要往这个工作区搬回来**。
 
 ## 9. 文风
 
