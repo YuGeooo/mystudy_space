@@ -23,9 +23,9 @@
 ├── 2020年管综合真题/          paper.md · answer1–4.md · 批改总结.md · 答案速查.md
 ├── 2024年管综真题/            paper.md · answer1–11.md · 批改总结.md · 答案速查.md
 ├── 2025年英语二/              paper.md · answer1–5.md · 试卷总结.md · 生词本.md
-├── 形式逻辑与综合推理/         卷一、卷二题库 + answer1/ · answer2/
+├── 形式逻辑与综合推理/         形式逻辑与综合推理一/二.md + answer1/answer1-1.md · answer2/answer2-1.md
 ├── 专项训练二-五大条件类推理题/  paper.md · answer2/answer2-1–4.md · 答案速查.md
-├── 专项训练四-削弱题/          paper.md（题干与选项；答案页待补）
+├── 专项训练四-削弱题/          paper.md · 答案速查.md
 ├── 数学应用题/                应用题.md · answer1–11/ · 全书总结.md · 待重做.md
 └── 错题重练-2026-11-09/       paper.md · answer1–3.md · 答案速查.md
 ```
