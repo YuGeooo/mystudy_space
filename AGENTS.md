@@ -26,7 +26,7 @@ mem_study/
 | 项 | 值 |
 |---|---|
 | 真源 | 线上 SQLite，跑在 `geyuqi.me`（`mem-api.service`） |
-| 规模 | 8 卷 / 343 题 / 41 场 / 328 条作答 |
+| 规模 | 8 卷 / 343 题 / 42 场 / 343 条作答 |
 | 站点 | <https://geyuqi.me/study/>，与接口同一进程实时渲染，写完立刻可见 |
 | 入口 | 查询 `mem sql`（只读 SQL）· 页面口径 `/api/study` · 写入 `mem` 命令（`/api/*`） |
 | 鉴权 | token 在 `~/.mem-api-token`，或 `MEM_WRITE_TOKEN` |
