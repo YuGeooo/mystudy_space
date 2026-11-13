@@ -9,7 +9,7 @@
 
 ```text
 mem_study/
-├── 题库/                 本地副本：题干、作答与批改、答案速查、各卷总结（60 份 Markdown）
+├── 题库/                 本地副本：题干、作答与批改、答案速查、各卷总结（61 份 Markdown）
 ├── 总结/                 新写的总结与常用口径
 │   ├── 管综-批改总结.md
 │   ├── 错因标签口径.md
@@ -77,10 +77,12 @@ SQL 留给固定切面覆盖不了的临时分析（§3.3）。
 
 > `/api/study` 已在线上可用（2026-11-12 验证 `section=stats` 返回 200），直接 curl 即可。
 
-**录入场次的正文分工（踩过坑）**：`fullText` 只放「标题 + 一两行汇总」，逐题分析必须写进对应 `attempts[].process`。
-原文页的渲染规则是——全文块像自动答案汇总（没有正文段落）才切「逐题作答」卡片，否则整篇当正文渲染，
-15 题会变成一篇长文、没有卡片。改单题正文用 `mem a set <id> process=...`（只传分析段，题头与
-`### Answer` 由服务端自动生成；首条作答上挂着全文块时会被自动接回）。
+**录场次：`fullText` 默认不传，也不要传（踩过坑）**。不传时服务端自动生成「标题 + 录入说明 + 逐题两行答案」，
+这种块必然是纯汇总，原文页跳过它、直接渲染逐题作答卡片。判据在 `web/render/render.mjs::isAnswerSummaryOnly`：
+全文块去掉标题、`>` 引用、分隔线、`- 我的答案/正确答案/得分` 行后，**剩余正文 < 40 字**才算汇总。
+只要塞进任何正文段落（哪怕一段「共性归纳」），整篇就被当正文渲染——15 题变成一篇长文、没有卡片。
+逐题分析一律写进 `attempts[].process`（库列 `process_md`）；整场归纳写 `总结/`，不往 `fullText` 塞。
+改单题正文用 `mem a set <id> --file`，只传分析段——题头与 `### Answer` 由服务端生成，把标题一起回写会重复。
 
 ### 3.2 四张表
 
@@ -170,7 +172,7 @@ mem q set 2024-exam-q001 --file patch.json      # 长文本走 --file
 ```
 
 - `correct` 可省略：有标准答案的客观题自动判，判不了留 `null`（未判），**不要猜**。
-- **批改全文放 `process`**（库列 `process_md`），整场正文放 `fullText`；这两个字段长，别塞命令行，用 `--file` 或整份 JSON。
+- **逐题批改放 `process`**（库列 `process_md`）；`fullText` **默认不传**（理由见 §3.1），只有确需加「标题 + 一两行汇总」才传，且不得含正文段落。这两个字段都长，别塞命令行，用 `--file` 或整份 JSON。
 - `errorTag` / `redoStatus` 是自由文本，库里现存中文值，照旧用，别指望枚举校验。
 
 **为什么写不能走 SQL**：一次写要做三件事——字段校验、写前快照、导出 JSON 并刷新页表（40~230 ms）。
@@ -179,9 +181,21 @@ mem q set 2024-exam-q001 --file patch.json      # 长文本走 --file
 
 ## 4. 一场练习的流程
 
+**新卷首次录入**（卷还不存在时）：`mem p new --file` 建卷 → `mem q new --file` 逐题 → `mem q set <id> answer=X` 补答案 → `mem s new` 记场次。
+
+建卷时 `totalQuestions` / `scorableQuestions` / `answerSources` **必须显式传**。2026-11-13 之前写接口的白名单不含这三个字段，传了会被静默丢弃，站点于是把整卷显示成「进度未知 · 未闭环」（页面能打开、题也能做，所以很容易漏）。接口已补，别省这一步。建完验一句：
+
+```bash
+curl -s "https://geyuqi.me/api/study?section=volumes" \
+  | python3 -c "import sys,json;[print(v['slug'],v.get('totalQuestions'),v.get('progress')) for v in json.load(sys.stdin) if v['slug']=='<slug>']"
+```
+
+打印 `null` 就是没写进去（正常形如 `reasoning-4 15 1`）。答案页没拍时 `answer` 留空、`scorable=1` 保留，补答案后判定会自动出。
+
 1. 做卷（纸上）→ 草稿拍照或扫描，存 `草稿/<日期>-<卷名>/`，不进版本管理。
 2. 逐页转录 → 按第 5 节流程批改，形成逐题判定与错因。
 3. `mem s new session.json` 一次写入：场次头（日期、时长、计时口径）+ 逐题（作答、判定、`process` 批改全文）。一条不合法整场不写，宁可拆两次。
+   **录完立刻验**：`curl -s "https://geyuqi.me/study/source/<卷目录>/<answerN>/" | grep -c 'class="attempt-card"'` 应等于本场题数。少于题数＝`fullText` 被当正文渲染了，按 §3.1 改成不传再 `mem s set <id> --file`。
 4. 错题标 `errorTag`，需要重练的标 `redoStatus=待重做`。
 5. 隔天不看批改、白纸重做：新场次里 `isRedo=true`，做完 `mem a set <id> correct=true`，再 `mem a done <id>` 销账。
 6. 一场或一卷结束，在 `总结/` 里追加当段总结。
@@ -219,6 +233,7 @@ mem q set 2024-exam-q001 --file patch.json      # 长文本走 --file
 
 - 不要用 SQL 改数据（`insert` / `update` / `delete`，也不要 `sqlite3` 直写库文件）：绕过事务、写前快照与页表刷新，页面会和库脱节。**只读查询随便写 SQL，写入一律走 `mem`。**
 - 不要在 `题库/` 里随手改判定或答案：那里是回看副本，改了不会同步到库，只会造出第二份不一致的数据。要更正就 `mem a set` / `mem q set`。
+- 不要把整篇批改正文塞进 `fullText`，也不要为了「让归纳上页面」这么做：原文页会退化成一篇长文、逐题卡片全丢。归纳写进 `总结/`。
 - 不要凭记忆报题目、答案或分数；查不到就写"未记录"。
 - 不要自己恢复线上数据，不要动线上服务。
 - 不要拿旧备份覆盖线上（`../mem_web/backups/*.db`、`mem backups` 写前快照）：它们是恢复用的保险，不是数据源。真要回滚先问一句。
