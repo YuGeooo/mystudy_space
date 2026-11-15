@@ -183,19 +183,41 @@ mem q set 2024-exam-q001 --file patch.json      # 长文本走 --file
 
 **新卷首次录入**（卷还不存在时）：`mem p new --file` 建卷 → `mem q new --file` 逐题 → `mem q set <id> answer=X` 补答案 → `mem s new` 记场次。
 
-建卷时 `totalQuestions` / `scorableQuestions` / `answerSources` **必须显式传**。2026-11-13 之前写接口的白名单不含这三个字段，传了会被静默丢弃，站点于是把整卷显示成「进度未知 · 未闭环」（页面能打开、题也能做，所以很容易漏）。接口已补，别省这一步。建完验一句：
+建卷时 `totalQuestions` / `scorableQuestions` / `answerSources` 与 `notes` 要落在 **`mem p set`** 上——`mem p new` 的白名单只有 `slug` / `title` / `subject` / `scoreRule`，这四个字段传了会被静默丢弃（2026-11-14 建 `2021-exam` 实测：传了四个字段，`notes` 存成 `{"text":null,"baseline":{}}`，站点于是把整卷显示成「进度未知 · 未闭环」；页面能打开、题也能做，所以很容易漏）。补法是：
+
+```bash
+mem p set 2021-exam questionCount=57 totalQuestions=57 scorableQuestions=55 note="……"
+```
+
+`questionCount` 也一起给：此后每次 `q new` 都会把它重算成「实际已录题数」，卷没录完（如只录了 27/57 题）时掌握度会按 27 题算。**`p set` 也一样**——不传 `questionCount` 就按实际题数重算回去（2026-11-14 实测：先设 57，改 `note`/`answerSources` 时又被压回 27），所以它是每个写操作之后的最后一步，改完别的字段再补一次。建完验一句：
 
 ```bash
 curl -s "https://geyuqi.me/api/study?section=volumes" \
   | python3 -c "import sys,json;[print(v['slug'],v.get('totalQuestions'),v.get('progress')) for v in json.load(sys.stdin) if v['slug']=='<slug>']"
 ```
 
-打印 `null` 就是没写进去（正常形如 `reasoning-4 15 1`）。答案页没拍时 `answer` 留空、`scorable=1` 保留，补答案后判定会自动出。
+打印 `null` 就是没写进去（正常形如 `reasoning-4 15 1`）。注意这一节只列**已有作答**的卷，新卷一场没做时查不到属正常，该改用 `mem sql "select notes from papers where slug='<slug>'"` 看 `baseline.totalQuestions` 是否落库。
+
+`mem q new` 不传 `scorable` 会存 **0**（不是 1），整卷录完要逐题 `mem q set <id> scorable=true` 补；答案页没拍时 `answer` 留空、`scorable=1` 保留，补答案后判定会自动出。
+
+**卷还必须挂原文页，才进统计。** `build-site` 组装卷清单时只收 `baseline.paperPrefix` 非空的卷（`loadVolumes().filter(v => v.papers?.length)`），没挂 `paperFile` 的卷在掌握度里会退化成 `slug=volume-N`、`name=<slug>`、`status=unknown`，题数和进度全空——题照样能做，只是统计里认不出来。补法（长文本走 `--file`）：
+
+```bash
+mem p set <slug> --file paper_patch.json   # {"paperFile":"<卷目录>/paper.md","paperPrefix":"<页头 markdown>"}
+```
+
+`paperPrefix` 只放页头到第一个 section 头为止（标题 / 科目 / 科目代码 / 一、问题求解 + 选项说明），其余 section 由题目的 `topic` 分组渲染。挂完还要把已有场次的 `file` 挪到同一目录，否则场次按 `volume` 匹配不上、`sessions` 记 0：
+
+```bash
+mem s set <sessionId> file=<卷目录>/answerN.md
+```
+
+注意 `s set file` 会让服务端重算整场全文并写回**本场第一条作答的 `process_md`**（`content.json` 从首条取 `===== 场次全文：` 段，属设计）。所以从库里导本地副本时要按该标记截断，否则整篇汇总会混进第一题的批改里。
 
 1. 做卷（纸上）→ 草稿拍照或扫描，存 `草稿/<日期>-<卷名>/`，不进版本管理。
 2. 逐页转录 → 按第 5 节流程批改，形成逐题判定与错因。
 3. `mem s new session.json` 一次写入：场次头（日期、时长、计时口径）+ 逐题（作答、判定、`process` 批改全文）。一条不合法整场不写，宁可拆两次。
-   **录完立刻验**：`curl -s "https://geyuqi.me/study/source/<卷目录>/<answerN>/" | grep -c 'class="attempt-card"'` 应等于本场题数。少于题数＝`fullText` 被当正文渲染了，按 §3.1 改成不传再 `mem s set <id> --file`。
+   **录完立刻验**：`curl -s "https://geyuqi.me/study/source/<卷目录>/<answerN>/" | grep -c 'attempt-card'` 应等于本场题数。少于题数＝`fullText` 被当正文渲染了，按 §3.1 改成不传再 `mem s set <id> --file`。**别用 `grep -c 'class="attempt-card"'`**——错题卡片的 class 是 `attempt-card is-bad`，会少算错题数（13 题里 3 道错，只数出 10），以为渲染漏了。
 4. 错题标 `errorTag`，需要重练的标 `redoStatus=待重做`。
 5. 隔天不看批改、白纸重做：新场次里 `isRedo=true`，做完 `mem a set <id> correct=true`，再 `mem a done <id>` 销账。
 6. 一场或一卷结束，在 `总结/` 里追加当段总结。

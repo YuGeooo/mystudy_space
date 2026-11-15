@@ -1,6 +1,6 @@
 # 题库
 
-真题与专项练习的本地副本：题干、作答与批改、答案速查、各卷总结。截至 2026-11-13 共 61 份 Markdown。
+真题与专项练习的本地副本：题干、作答与批改、答案速查、各卷总结。截至 2026-11-15 共 79 份 Markdown。
 
 | 文件 | 是什么 |
 |---|---|
@@ -22,11 +22,13 @@
 题库/
 ├── 2020年管综合真题/          paper.md · answer1–4.md · 批改总结.md · 答案速查.md
 ├── 2024年管综真题/            paper.md · answer1–11.md · 批改总结.md · 答案速查.md
+├── 2021年管综真题/            paper.md（Q1–57，全卷） · answer1.md（Q1–13） · answer2.md（Q14–25） · answer3.md（Q26–35） · answer4.md（Q36–55） · 答案速查.md
 ├── 2025年英语二/              paper.md · answer1–5.md · 试卷总结.md · 生词本.md
 ├── 形式逻辑与综合推理/         形式逻辑与综合推理一/二.md + answer1/answer1-1.md · answer2/answer2-1.md
 ├── 专项训练二-五大条件类推理题/  paper.md · answer2/answer2-1–4.md · 答案速查.md
 ├── 专项训练四-削弱题/          paper.md · answer1.md · 答案速查.md
 ├── 数学应用题/                应用题.md · answer1–11/ · 全书总结.md · 待重做.md
+├── 排列组合-考向例题/          考向01–10（按考向分页，18 题） · 答案速查.md
 └── 错题重练-2026-11-09/       paper.md · answer1–3.md · 答案速查.md
 ```
 
